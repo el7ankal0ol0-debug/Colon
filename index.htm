@@ -29,7 +29,6 @@
     min-height:100vh;
   }
   
-  /* Header */
   header{
     background:#fff;
     border-bottom:1px solid var(--line);
@@ -60,7 +59,6 @@
     padding:0 20px;
   }
 
-  /* Stats Cards */
   .stats-grid{
     display:grid;
     grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));
@@ -85,7 +83,6 @@
     color:var(--ink-dim);
   }
 
-  /* Filters & Controls */
   .controls{
     display:flex; justify-content:space-between; align-items:center;
     flex-wrap:wrap; gap:12px;
@@ -114,7 +111,6 @@
     cursor:pointer; text-decoration:underline; font-family:inherit;
   }
 
-  /* Orders List */
   .orders-list{
     display:flex; flex-direction:column; gap:16px;
   }
@@ -139,7 +135,6 @@
     color:var(--ink);
   }
   
-  /* Status Badges Colors */
   .status-badge{
     padding:4px 12px;
     border-radius:14px;
@@ -202,9 +197,7 @@
     color:var(--ink);
     cursor:pointer;
     outline:none;
-    transition:border-color 0.2s;
   }
-  .status-select:focus{ border-color:var(--gold-700); }
 
   .btn-delete{
     background:var(--cream-200); color:var(--ink-dim);
@@ -223,11 +216,10 @@
 
 <header>
   <h1 class="brand-title">Lavia Fashion</h1>
-  <span class="admin-badge">لوحة الإدارة</span>
+  <span class="admin-badge">لوحة الإدارة السحابية</span>
 </header>
 
 <div class="container">
-  <!-- Stats -->
   <div class="stats-grid">
     <div class="stat-card">
       <div class="lbl">إجمالي الطلبات</div>
@@ -247,7 +239,6 @@
     </div>
   </div>
 
-  <!-- Controls -->
   <div class="controls">
     <div class="filter-tabs">
       <button class="tab-btn active" onclick="setFilter('all', this)">كل الطلبات</button>
@@ -260,105 +251,101 @@
     <button class="clear-btn" onclick="clearAllOrders()">مسح كافة الطلبات</button>
   </div>
 
-  <!-- Orders List -->
-  <div class="orders-list" id="adminOrdersContainer">
-    <!-- Dynamic Content -->
-  </div>
+  <div class="orders-list" id="adminOrdersContainer"></div>
 </div>
 
-<script>
-  let currentFilter = 'all';
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+  import { getDatabase, ref, onValue, update, remove } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js";
 
-  function getOrders(){
-    try {
-      return JSON.parse(localStorage.getItem('lavia_my_orders') || '[]');
-    } catch(e) {
-      return [];
+  const firebaseConfig = {
+    apiKey: "AIzaSyCd-LETJDDbiEcfFIZC-tS2Z71sxcAkCjM",
+    authDomain: "fashion-a6618.firebaseapp.com",
+    projectId: "fashion-a6618",
+    storageBucket: "fashion-a6618.firebasestorage.app",
+    messagingSenderId: "359758522495",
+    appId: "1:359758522495:web:9f72cae8486385acfa374a",
+    measurementId: "G-5XE9QFZYQV",
+    databaseURL: "https://fashion-a6618-default-rtdb.firebaseio.com"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  window.globalOrders = [];
+  window.currentFilter = 'all';
+
+  // تحديث حالة الطلب في قاعدة البيانات Realtime
+  window.updateOrderStatus = (orderId, newStatus) => {
+    update(ref(db, 'orders/' + orderId), { status: newStatus });
+  };
+
+  window.deleteOrder = (orderId) => {
+    if(confirm('هل أنت تأكد من حذف هذا الطلب نهائياً؟')){
+      remove(ref(db, 'orders/' + orderId));
     }
-  }
+  };
 
-  function saveOrders(orders){
-    localStorage.setItem('lavia_my_orders', JSON.stringify(orders));
-    renderAdmin();
-  }
+  window.clearAllOrders = () => {
+    if(confirm('تحذير: هل تريد مسح جميع الطلبات المسجلة من كافة الأجهزة؟')){
+      remove(ref(db, 'orders'));
+    }
+  };
 
-  function setFilter(filter, btn){
-    currentFilter = filter;
+  window.setFilter = (filter, btn) => {
+    window.currentFilter = filter;
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     renderAdmin();
-  }
+  };
 
-  function updateOrderStatus(orderId, newStatus){
-    const orders = getOrders();
-    const order = orders.find(o => o.id === orderId);
-    if(order){
-      order.status = newStatus;
-      saveOrders(orders);
+  // المراقبة الفورية للطلبات (Realtime Listener)
+  onValue(ref(db, 'orders'), (snapshot) => {
+    const data = snapshot.val();
+    window.globalOrders = [];
+    if(data){
+      Object.keys(data).forEach(key => {
+        window.globalOrders.push(data[key]);
+      });
+      window.globalOrders.reverse();
     }
-  }
-
-  function deleteOrder(orderId){
-    if(confirm('هل أنت تأكد من حذف هذا الطلب نهائياً؟')){
-      let orders = getOrders();
-      orders = orders.filter(o => o.id !== orderId);
-      saveOrders(orders);
-    }
-  }
-
-  function clearAllOrders(){
-    if(confirm('تحذير: هل تريد مسح جميع الطلبات المسجلة؟')){
-      localStorage.removeItem('lavia_my_orders');
-      renderAdmin();
-    }
-  }
+    renderAdmin();
+  });
 
   function getStatusClass(status){
     switch(status){
-      case 'تحت المعالجة':
-      case 'قيد المتابعة':
-        return 'status-processing';
-      case 'مؤكد':
-      case 'تم التأكيد':
-        return 'status-confirmed';
-      case 'في الطريق':
-        return 'status-shipping';
-      case 'تم الاستلام':
-        return 'status-delivered';
-      case 'ملغي':
-      case 'تم الإلغاء':
-        return 'status-cancelled';
-      default:
-        return 'status-processing';
+      case 'تحت المعالجة': case 'قيد المتابعة': return 'status-processing';
+      case 'مؤكد': case 'تم التأكيد': return 'status-confirmed';
+      case 'في الطريق': return 'status-shipping';
+      case 'تم الاستلام': return 'status-delivered';
+      case 'ملغي': case 'تم الإلغاء': return 'status-cancelled';
+      default: return 'status-processing';
     }
   }
 
   function renderAdmin(){
-    const orders = getOrders();
     const container = document.getElementById('adminOrdersContainer');
 
-    // Stats calculations
-    document.getElementById('statTotalOrders').textContent = orders.length;
+    document.getElementById('statTotalOrders').textContent = window.globalOrders.length;
     
-    const pendingCount = orders.filter(o => o.status === 'تحت المعالجة' || o.status === 'قيد المتابعة' || !o.status).length;
+    const pendingCount = window.globalOrders.filter(o => o.status === 'تحت المعالجة' || o.status === 'قيد المتابعة' || !o.status).length;
     document.getElementById('statPendingOrders').textContent = pendingCount;
 
-    const activeCount = orders.filter(o => o.status === 'في الطريق' || o.status === 'تم الاستلام').length;
+    const activeCount = window.globalOrders.filter(o => o.status === 'في الطريق' || o.status === 'تم الاستلام').length;
     document.getElementById('statActiveOrders').textContent = activeCount;
 
-    const confirmedRev = orders
+    const confirmedRev = window.globalOrders
       .filter(o => o.status === 'تم الاستلام' || o.status === 'مؤكد')
       .reduce((sum, o) => sum + (o.total || 0), 0);
     document.getElementById('statTotalRevenue').textContent = confirmedRev.toLocaleString('ar-EG') + ' ج.م';
 
-    // Filter Logic
-    let filteredOrders = orders;
-    if(currentFilter !== 'all'){
-      filteredOrders = orders.filter(o => {
-        if(currentFilter === 'تحت المعالجة') return o.status === 'تحت المعالجة' || o.status === 'قيد المتابعة' || !o.status;
-        if(currentFilter === 'مؤكد') return o.status === 'مؤكد' || o.status === 'تم التأكيد';
-        if(currentFilter === 'ملغي') return o.status === 'ملغي' || o.status === 'تم الإلغاء';
-        return o.status === currentFilter;
+    let filteredOrders = window.globalOrders;
+    if(window.currentFilter !== 'all'){
+      filteredOrders = window.globalOrders.filter(o => {
+        if(window.currentFilter === 'تحت المعالجة') return o.status === 'تحت المعالجة' || o.status === 'قيد المتابعة' || !o.status;
+        if(window.currentFilter === 'مؤكد') return o.status === 'مؤكد' || o.status === 'تم التأكيد';
+        if(window.currentFilter === 'ملغي') return o.status === 'ملغي' || o.status === 'تم الإلغاء';
+        return o.status === window.currentFilter;
       });
     }
 
@@ -366,7 +353,7 @@
       container.innerHTML = `
         <div class="empty-state">
           <h3>لا توجد طلبات تعرض حالياً</h3>
-          <p>عندما يقوم العملاء بالشراء أو تصفية الحالة ستظهر الطلبات هنا.</p>
+          <p>عندما يقوم أي عميل بالشراء ستظهر طلباته هنا في الوقت الفعلي.</p>
         </div>
       `;
       return;
@@ -403,6 +390,10 @@
             </div>
 
             <div class="info-box">
+              <strong style="color:var(--ink);">بيانات العميل:</strong><br>
+              الاسم: ${o.customer?.name || 'غير محدد'}<br>
+              الهاتف: ${o.customer?.phone || 'غير محدد'}<br>
+              العنوان: ${o.customer?.city || ''} - ${o.customer?.address || ''}<br><br>
               <strong style="color:var(--ink);">طريقة الدفع:</strong><br>
               ${o.paymentMethod || 'الدفع عند الاستلام'}
             </div>
@@ -426,10 +417,8 @@
       `;
     }).join('');
   }
-
-  // Run on load
-  renderAdmin();
 </script>
 
 </body>
 </html>
+
